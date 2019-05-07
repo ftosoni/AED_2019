@@ -2,7 +2,7 @@
 Updated: Spring :two::zero::one::nine:
 
 ----
-## what is PCAP? :mega:
+## What is PCAP? :mega:
 from the :globe_with_meridians:[Wikipedia](https://en.wikipedia.org/wiki/Pcap) page:
 
 > "In the field of computer network administration, pcap is an application programming interface (API) for **capturing network traffic**. While the name is an abbreviation of a technical term of art (jargon) packet capture, that is not the API's proper name. Unix-like systems implement pcap in the **libpcap library**.
