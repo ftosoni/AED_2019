@@ -26,16 +26,16 @@ g++ source_file.cpp -lpcap
 ## What you find over here :pencil:
 Some exercises (C/C++) related to the usage of the libpcap library.
 
-**exercise 1** 
-* print some metadata (*caplen*, *len*) about a packet sensed in the network.
+* **exercise 1** print some metadata (*caplen*, *len*) about a packet sensed in the network.
+
 `Output example`
 ```bash
 caplen: 64
 len: 149
 ```
 
-**exercise 2**
-* implement a *remote procedure call* (RPC) that counts the number of packets sensed by the library. Note that this is a stateful computation.
+* **exercise 2** implement a *remote procedure call* (RPC) that counts the number of packets sensed by the library. Note that this is a stateful computation.
+
 `Output example`
 ```bash
 pkt nr: 1
@@ -50,8 +50,8 @@ pkt nr: 9
 pkt nr: 10
 ```
 
-**exercise 3**
-* recognize IP packets and display their source and destination addresses. Which of them carries TCP data?
+* **exercise 3** recognize IP packets and display their source and destination addresses. Which of them carries TCP data?
+
 `Output example`
 ```bash
 not an IP packet...
