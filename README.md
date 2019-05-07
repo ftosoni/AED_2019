@@ -1,5 +1,5 @@
 # PCAP Lab ― AED :satellite::loop::loop::loop::computer:
-Updated: Spring :two::zero::one::nine:
+AED Spring 2019
 
 ----
 ## What is PCAP? :mega:
