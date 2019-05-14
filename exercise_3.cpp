@@ -41,8 +41,6 @@ void packet_handler(u_char *accumulator, const struct pcap_pkthdr *metadata, con
 
     auto protocol = (ih->protocol == IPPROTO_TCP) ? "TCP" : "";
     cout << "ip source: " << ip_src << ", ip destination: " << ip_dst << " " << protocol << endl;
-
-
 }
 
 int main(int argc, char *argv[]){
