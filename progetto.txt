@@ -1,0 +1,18 @@
+contare il numero di pacchetti, byte e durata media di una connessione TCP.
+
+A xor B | 
+
+per durata vedere distanza tra SYN e FIN.
+gestire fatto delle incarnazioni della stessa connessioni.
+
+nei risultati si possono vedere due entry per stessa incarnazione
+con numeri diversi, ovviamente: mettere entrambi nei risultati.
+
+syn ->
+syn <-
+fin ->
+fin <-
+
+0x6 protocol per TCP
+
+
