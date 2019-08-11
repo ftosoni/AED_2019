@@ -14,7 +14,7 @@ import (
 )
 
 var (
-    device      string = "wlp3s0"
+    device      string = ""
     snapshotLen int32  = 1024
     promiscuous bool   = false
     err         error
@@ -50,17 +50,20 @@ type flow_value struct {
 var mii int = 0
 
 func main() {
-    if(len(os.Args) != 1+1){
-        fmt.Println("Usage is:",os.Args[0]," <#pkts>")
+    if(len(os.Args) != 1+2){
+        fmt.Println("Usage is:",os.Args[0]," <device> <#tcp_pkts>")
         return
     }
 
-    limit,err := strconv.Atoi(os.Args[1])
+    //args
+    device = os.Args[1]
+    limit,err := strconv.Atoi(os.Args[2])
     if err!=nil {
         fmt.Println("#pkts must be an integer")
         return
     }
 
+    //map maintaining sensed/processed data
     m := make(map[uint32]map[flow_key]flow_value)
 
     // Open device
