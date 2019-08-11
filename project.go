@@ -200,7 +200,6 @@ func processPacketInfo(packet gopacket.Packet, m *map[uint32]map[flow_key]flow_v
     }//end L3
 
 
-
     // Iterate over all layers, printing out each layer type
     fmt.Println("All packet layers:")
     for _,layer := range packet.Layers() {
@@ -265,15 +264,20 @@ func hashing(fk flow_key) uint32 {
     var u1,u2,u3 uint32
     
     //u1
+    //simply the source address
     u1 = fk.saddr
 
     //u2
+    //bits at odd poistions in destination address now occupy even positions, and vice versa
     u2 = ((fk.daddr & 0x55555555) << 1) | ((fk.daddr & 0xaaaaaaaa) >> 1)
 
     //u3
+    //source port bits are shifted to most significant and least significant positions
+    //destination port bits occupy central positions
     var sport_32,dport_32 uint32 = uint32(fk.sport),uint32(fk.dport)
     u3 = ((sport_32 >> (16-3)) << (32-3)) | (dport_32 << (32-3-16)) | (sport_32 & ((1 << (16-3)) - 1))
-
+    
+    //exclusive or operation is performed
     return u1 ^ u2 ^ u3
 }
 
