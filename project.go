@@ -47,8 +47,6 @@ type flow_value struct {
     s               status
 }
 
-var mii int = 0
-
 func main() {
     if(len(os.Args) != 1+2){
         fmt.Println("Usage is:",os.Args[0]," <device> <#tcp_pkts>")
@@ -135,7 +133,6 @@ func processPacketInfo(packet gopacket.Packet, m *map[uint32]map[flow_key]flow_v
             syn := tcp.SYN
             fin := tcp.FIN
             ack := tcp.ACK
-            if(syn) { mii++}
 
             // L5 - applicationLayer contains the payload
             var bytes uint32
