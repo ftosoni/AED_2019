@@ -25,22 +25,17 @@ var (
 type status uint8
 const (
     CLOSED  status = iota
-    SYN_RECEIVED
-    SYN_SENT    
-    ESTABLISHED
-    FIN_WAIT_1
-    FIN_WAIT_2
-    CLOSING
-    CLOSE_WAIT
-    LAST_ACK
-    USELESS
+    SYN     
+    SYNACK  
+    OPEN    
+    FIN     
 )
 
 type flow_key struct {
-    addr1           uint32
-    addr2           uint32
-    port1           uint16
-    port2           uint16
+    saddr           uint32
+    daddr           uint32
+    sport           uint16
+    dport           uint16
 }
 
 type flow_value struct {
@@ -49,8 +44,7 @@ type flow_value struct {
     starting_time   time.Time
     tot_duration    time.Duration
     incarnations    uint32
-    s1              status
-    s2              status
+    s               status
 }
 
 func main() {
@@ -63,7 +57,7 @@ func main() {
     device = os.Args[1]
     limit,err := strconv.Atoi(os.Args[2])
     if err!=nil {
-        fmt.Println("<#tcp_pkts> must be an integer")
+        fmt.Println("#pkts must be an integer")
         return
     }
 
@@ -94,7 +88,7 @@ func print_statistics(m *map[uint32]map[flow_key]flow_value) {
     for k,v := range *m {
         fmt.Println("hash:",k)
         for k2,v2 := range v {
-            fmt.Println("-",int2ipv4(k2.addr1),"(port",k2.port1,") <---->",int2ipv4(k2.addr2), "(port",k2.port2,")")
+            fmt.Println("- from",int2ipv4(k2.saddr),"(port",k2.sport,") to",int2ipv4(k2.daddr), "(port",k2.dport,")")
             fmt.Println("\tpkts:",v2.pkts)
             fmt.Println("\tbytes:",v2.bytes)
             if v2.incarnations>0 {
@@ -102,34 +96,10 @@ func print_statistics(m *map[uint32]map[flow_key]flow_value) {
             } else {
                 fmt.Println("\tavg duration: NO DATA")
             }
-            fmt.Println("\tincarnations:",v2.incarnations)
-            fmt.Println("\tstatus 1:",v2.s1)
-            fmt.Println("\tstatus 2:",v2.s2)
         }
         fmt.Println()
     }
 
-}
-
-func compute_flow_key(saddr uint32, daddr uint32, sport uint16, dport uint16) (flow_key,bool) {
-    var fk flow_key
-    is1to2 := saddr < daddr
-    if is1to2 {
-        fk = flow_key{
-            saddr,
-            daddr,
-            sport,
-            dport,
-        }
-    }else{
-        fk = flow_key{
-            daddr,
-            saddr,
-            dport,
-            sport,
-        }
-    }
-    return fk, is1to2
 }
 
 func processPacketInfo(packet gopacket.Packet, m *map[uint32]map[flow_key]flow_value) bool {
@@ -177,44 +147,31 @@ func processPacketInfo(packet gopacket.Packet, m *map[uint32]map[flow_key]flow_v
             //processing: from here
 
             //check previous TCP status
-            fk,is1to2 := compute_flow_key(
+            fk := flow_key{
                 to_uint32(ip.SrcIP),
                 to_uint32(ip.DstIP),
                 uint16(tcp.SrcPort),
                 uint16(tcp.DstPort),
-            )
+            }
             hash := hashing(fk)
-            prev_s1,prev_s2 := CLOSED,CLOSED
+            prev_status := CLOSED
             _,present := (*m)[hash]
             if(!present){
                 (*m)[hash] = make(map[flow_key]flow_value)
             }
             fv,present2 := (*m)[hash][fk]
             if present2 {
-                prev_s1 = fv.s1
-                prev_s2 = fv.s2
+                prev_status = fv.s
             }
 
-            var new_status status
-            var isStatusChanged bool
-
-            if is1to2 {
-                //addr1 sent to addr2, so new status for s1
-                new_status = compute_new_status_sender(prev_s2,syn,fin)
-                fv.s2 = new_status
-                new_status,isStatusChanged = compute_new_status_receiver(prev_s1,syn,fin,ack)
-            }else{
-                //addr2 sent to addr1, so new status for s2
-                new_status = compute_new_status_sender(prev_s1,syn,fin)
-                fv.s1 = new_status
-                new_status,isStatusChanged = compute_new_status_receiver(prev_s2,syn,fin,ack)
-            }
-            
+            //compute new TCP status
+            new_status := compute_new_status(prev_status,syn,fin,ack)
 
             //updating (or creating) flow_value
-            if present2 {
+            if(present2){
                 fv.bytes += bytes
                 fv.pkts += 1
+                fv.s = new_status
             }else{
                 fv = flow_value{
                     1,      //pkts
@@ -222,21 +179,15 @@ func processPacketInfo(packet gopacket.Packet, m *map[uint32]map[flow_key]flow_v
                     time.Now(),    //starting_time
                     0,      //tot_duration
                     0,      //incarnations
-                    CLOSED, //status 1
-                    CLOSED, //status 2
+                    new_status, //status
                 }
-            }
-            if is1to2 {
-                fv.s1 = new_status
-            } else {
-                fv.s2 = new_status
             }
 
             //update when opening or closing connections
-            if isStatusChanged {
-                if new_status == ESTABLISHED {
+            if new_status!=prev_status {
+                if new_status == OPEN {
                     fv.starting_time = time.Now()
-                }else if fv.s1 == CLOSED && fv.s2 == CLOSED {
+                }else if new_status == CLOSED {
                     elapsed := time.Since(fv.starting_time)
                     fv.tot_duration += elapsed
                     fv.incarnations ++
@@ -250,12 +201,10 @@ func processPacketInfo(packet gopacket.Packet, m *map[uint32]map[flow_key]flow_v
 
 
     // Iterate over all layers, printing out each layer type
-    /*
     fmt.Println("All packet layers:")
     for _,layer := range packet.Layers() {
         fmt.Println("- ", layer.LayerType())
     }
-    */
 
     // Check for errors
     if err := packet.ErrorLayer(); err != nil {
@@ -265,84 +214,41 @@ func processPacketInfo(packet gopacket.Packet, m *map[uint32]map[flow_key]flow_v
     return isTCP
 }
 
-func compute_new_status_sender(
-    prev_status status,
-    syn bool,
-    fin bool,
-    ) status {
-    
-    var new_status status
-
-    switch prev_status {
-    case CLOSED :
-        if syn {
-            new_status = SYN_SENT
-        }
-    case ESTABLISHED :
-        if fin {
-            new_status = FIN_WAIT_1
-        }
-    case CLOSE_WAIT :
-        if fin {
-            new_status = LAST_ACK
-        }
-    default:
-        new_status = prev_status
-    }
-
-    return new_status
-}
-
-func compute_new_status_receiver(
+func compute_new_status(
     prev_status status,
     syn bool,
     fin bool,
     ack bool,
-    ) (status,bool) {
+    ) status {
 
     var new_status status
 
     switch prev_status {
     case CLOSED :
         if syn {
-            new_status = SYN_RECEIVED
-        }
-    case SYN_RECEIVED :
-        if ack {
-            new_status = ESTABLISHED
-        }
-    case SYN_SENT :
-        if syn {
             if ack {
-                new_status = ESTABLISHED
+                new_status = SYNACK
             } else {
-                new_status = SYN_RECEIVED
+                new_status = SYN
             }
         }
-    case ESTABLISHED :
+    case SYN :
+        if syn && ack {
+            new_status = OPEN
+        }
+    case SYNACK :
+        if ack {
+            new_status = OPEN
+        }
+    case OPEN :
         if fin {
             if ack {
-                new_status = LAST_ACK
+                new_status = CLOSED
             } else {
-                new_status = CLOSE_WAIT
+                new_status = FIN
             }
         }
-    case FIN_WAIT_1 :
-        if fin {
-            new_status = CLOSING
-        } else if ack {
-            new_status = FIN_WAIT_2
-        }
-    case FIN_WAIT_2 :
-        if fin {
-            new_status = CLOSED
-        }
-    case CLOSING :
-        if ack {
-            new_status = CLOSED
-        }
-    //case CLOSE_WAIT, nothing to do here...
-    case LAST_ACK :
+    case FIN :
         if ack {
             new_status = CLOSED
         }
@@ -350,12 +256,7 @@ func compute_new_status_receiver(
         new_status = prev_status
     }
 
-    if new_status > 1{
-        fmt.Println("Eccoci", new_status)
-    }else{
-        fmt.Println("Uffa", new_status)
-    }
-    return new_status, new_status!=prev_status
+    return new_status
 }
 
 
@@ -364,17 +265,17 @@ func hashing(fk flow_key) uint32 {
     
     //u1
     //simply the source address
-    u1 = fk.addr1
+    u1 = fk.saddr
 
     //u2
     //bits at odd poistions in destination address now occupy even positions, and vice versa
-    u2 = ((fk.addr2 & 0x55555555) << 1) | ((fk.addr2 & 0xaaaaaaaa) >> 1)
+    u2 = ((fk.daddr & 0x55555555) << 1) | ((fk.daddr & 0xaaaaaaaa) >> 1)
 
     //u3
     //source port bits are shifted to most significant and least significant positions
     //destination port bits occupy central positions
-    var port1_32,port2_32 uint32 = uint32(fk.port1),uint32(fk.port2)
-    u3 = ((port1_32 >> (16-3)) << (32-3)) | (port2_32 << (32-3-16)) | (port1_32 & ((1 << (16-3)) - 1))
+    var sport_32,dport_32 uint32 = uint32(fk.sport),uint32(fk.dport)
+    u3 = ((sport_32 >> (16-3)) << (32-3)) | (dport_32 << (32-3-16)) | (sport_32 & ((1 << (16-3)) - 1))
     
     //exclusive or operation is performed
     return u1 ^ u2 ^ u3
@@ -403,4 +304,3 @@ func int2ipv4(nn uint32) net.IP {
 	binary.BigEndian.PutUint32(ip, nn)
 	return ip
 }
-
