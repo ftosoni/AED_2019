@@ -21,6 +21,9 @@ var (
     err         error
     timeout     time.Duration = 30 * time.Second
     handle      *pcap.Handle
+
+    isLazy bool = false
+    isNoCopy bool = false
 )
 
 type status uint8
@@ -83,6 +86,8 @@ func main() {
 
     count := 0
     packetSource := gopacket.NewPacketSource(handle, handle.LinkType())
+    packetSource.DecodeOptions.Lazy = isLazy
+    packetSource.DecodeOptions.NoCopy = isNoCopy
     for packet := range packetSource.Packets() {
         if processPacketInfo(packet,&m) {
             count ++
@@ -262,12 +267,12 @@ func processPacketInfo(packet gopacket.Packet, m *map[uint32]map[flow_key]flow_v
 
 
     // Iterate over all layers, printing out each layer type
-    /*
+    
     fmt.Println("All packet layers:")
     for _,layer := range packet.Layers() {
         fmt.Println("- ", layer.LayerType())
     }
-    */
+    
 
     // Check for errors
     if err := packet.ErrorLayer(); err != nil {
