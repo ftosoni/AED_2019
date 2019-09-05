@@ -10,7 +10,6 @@ import (
     "net"
     "os"
     "strconv"
-    "strings"
     "time"
 )
 
@@ -56,7 +55,7 @@ type flow_value struct {
 
 func main() {
     if(len(os.Args) != 1+2){
-        fmt.Println("Usage is:",os.Args[0]," <device | pcapfile> <#tcp_pkts>")
+        fmt.Println("Usage is:",os.Args[0]," <device> <#tcp_pkts>")
         return
     }
 
@@ -71,13 +70,8 @@ func main() {
     //map maintaining sensed/processed data
     m := make(map[uint32]map[flow_key]flow_value)
 
-    // Open device or pcapfile
-    isFile := strings.HasSuffix(device, ".pcap")
-    if isFile {
-        handle, err = pcap.OpenOffline(device)
-    } else {
-        handle, err = pcap.OpenLive(device, snapshotLen, promiscuous, timeout)
-    }
+    // Open device
+    handle, err = pcap.OpenLive(device, snapshotLen, promiscuous, timeout)
     if err != nil {log.Fatal(err) }
     defer handle.Close()
 
@@ -109,7 +103,8 @@ func print_statistics(m *map[uint32]map[flow_key]flow_value) {
                 fmt.Println("\tavg duration: NO DATA")
             }
             fmt.Println("\t# TCP sessions:",v2.incarnations)
-
+            fmt.Println("\tstatus 1:",v2.s1)
+            fmt.Println("\tstatus 2:",v2.s2)
         }
         fmt.Println()
     }
@@ -242,7 +237,8 @@ func processPacketInfo(packet gopacket.Packet, m *map[uint32]map[flow_key]flow_v
             if ack {str_ack = "A"} else {str_ack = "_"}
             if syn {str_syn = "S"} else {str_syn = "_"}
             if fin {str_fin = "F"} else {str_fin = "_"}
-            fmt.Println(int2ipv4(fk.addr1),"(port",fk.port1,") <---->",int2ipv4(fk.addr2), "(port",fk.port2,")",fv.s1,fv.s2,str_syn,str_fin,str_ack,str_is1to2,time.Since(fv.starting_time))
+            if is1to2 {str_is1to2 = "1-->2"} else {str_is1to2 = "2-->1"}
+            fmt.Println("ZZZ",int2ipv4(fk.addr1),"(port",fk.port1,") <---->",int2ipv4(fk.addr2), "(port",fk.port2,")",fv.s1,fv.s2,str_syn,str_fin,str_ack,str_is1to2,new_status_sender,new_status_receiver,prev_s1,prev_s2,time.Since(fv.starting_time))
 
             //update when opening or closing connections
             if isStatusChanged {
@@ -299,6 +295,8 @@ func compute_new_status_sender(
             new_status = LAST_ACK
         }
     }
+
+    fmt.Print("prev_status_send",prev_status,",new stat_send", new_status)
 
     return new_status
 }
